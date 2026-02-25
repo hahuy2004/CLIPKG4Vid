@@ -28,7 +28,9 @@ class MSVD_DataLoader(Dataset):
             slice_framepos=0,
     ):
         self.data_path = data_path
+        # -------------------- New: load narration data from narration_path -----------
         self.narration = json.load(open(narration_path, 'r'))
+        # ---------------------------------------------------------------------------
         self.features_path = features_path
         self.feature_framerate = feature_framerate
         self.max_words = max_words
@@ -47,13 +49,13 @@ class MSVD_DataLoader(Dataset):
         video_id_path_dict["train"] = os.path.join(self.data_path, "train_list.txt")
         video_id_path_dict["val"] = os.path.join(self.data_path, "val_list.txt")
         video_id_path_dict["test"] = os.path.join(self.data_path, "test_list.txt")
-        query_file = os.path.join(self.data_path, "raw-captions.pkl")
+        caption_file = os.path.join(self.data_path, "raw-captions.pkl")
 
         with open(video_id_path_dict[self.subset], 'r') as fp:
             video_ids = [itm.strip() for itm in fp.readlines()]
 
-        with open(query_file, 'rb') as f:
-            queries = pickle.load(f)
+        with open(caption_file, 'rb') as f:
+            captions = pickle.load(f)
 
         video_dict = {}
         for root, dub_dir, video_files in os.walk(self.features_path):
@@ -69,8 +71,8 @@ class MSVD_DataLoader(Dataset):
         self.sentences_dict = {}
         self.cut_off_points = []
         for video_id in video_ids:
-            assert video_id in queries
-            for cap in queries[video_id]:
+            assert video_id in captions
+            for cap in captions[video_id]:
                 cap_txt = " ".join(cap)
                 self.sentences_dict[len(self.sentences_dict)] = (video_id, cap_txt)
             self.cut_off_points.append(len(self.sentences_dict))
@@ -92,21 +94,25 @@ class MSVD_DataLoader(Dataset):
 
         self.sample_len = len(self.sentences_dict)
         self.rawVideoExtractor = RawVideoExtractor(framerate=feature_framerate, size=image_resolution)
+        # -------------------- New: use RawFrameExtractor to extract raw frames instead of raw video -----------
         self.rawFrameExtractor = RawFrameExtractor(size=image_resolution)
+        # ----------------------------------------------------------------------------
         self.SPECIAL_TOKEN = {"CLS_TOKEN": "<|startoftext|>", "SEP_TOKEN": "<|endoftext|>",
                               "MASK_TOKEN": "[MASK]", "UNK_TOKEN": "[UNK]", "PAD_TOKEN": "[PAD]"}
         
+        # -------------------- New: build a dict to store narration for each video_id -----------
         self.narration_dict = {}
         for item in self.narration:
             video_file = item['video_file']
             narration = [item[f'caption_{i}'] for i in range(1, len(item))]
             self.narration_dict[video_file] = narration
+        # ---------------------------------------------------------------------------
 
-
+    # ---- Same CLIP4Clip ------
     def __len__(self):
         return self.sample_len
 
-    def _get_text(self, video_id, query):
+    def _get_text(self, video_id, caption):
         k = 1
         choice_video_ids = [video_id]
         pairs_text = np.zeros((k, self.max_words), dtype=np.longlong)
@@ -114,7 +120,7 @@ class MSVD_DataLoader(Dataset):
         pairs_segment = np.zeros((k, self.max_words), dtype=np.longlong)
 
         for i, video_id in enumerate(choice_video_ids):
-            words = self.tokenizer.tokenize(query)
+            words = self.tokenizer.tokenize(caption)
 
             words = [self.SPECIAL_TOKEN["CLS_TOKEN"]] + words
             total_length_with_CLS = self.max_words - 1
@@ -183,7 +189,9 @@ class MSVD_DataLoader(Dataset):
             video_mask[i][:v_length] = [1] * v_length
 
         return video, video_mask
+    # ----------------------------------------------
 
+    # ----- New: get rawframes instead of rawvideo --------
     def _get_rawframes(self, choice_video_ids):
         video_mask = np.zeros((len(choice_video_ids), self.max_frames), dtype=np.long)
         max_video_length = [0] * len(choice_video_ids)
@@ -228,7 +236,9 @@ class MSVD_DataLoader(Dataset):
             video_mask[i][:v_length] = [1] * v_length
 
         return video, video_mask
+    # ----------------------------------------------
     
+    # ----- New: get narration data --------
     def _get_narration(self, choice_video_ids):
 
         narration = np.zeros((len(choice_video_ids), self.max_frames, self.max_words), dtype=np.long)
@@ -258,13 +268,20 @@ class MSVD_DataLoader(Dataset):
                 caption_word_masks[video_idx][caption_idx] = np.array(input_mask)
 
         return narration, caption_word_masks
+    # ----------------------------------------------
 
+    # ----- New: get narration data and rawframes data, for narration-video retrieval -------- 
     def __getitem__(self, idx):
-        video_id, query = self.sentences_dict[idx]
+        video_id, caption = self.sentences_dict[idx]
 
-        pairs_text, pairs_mask, pairs_segment, choice_video_ids = self._get_text(video_id, query)
+        pairs_text, pairs_mask, pairs_segment, choice_video_ids = self._get_text(video_id, caption)
+        # ------------------- New: get narration data -----------
         narration, captions_word_mask = self._get_narration(choice_video_ids)
+        # -----------------------------------------------------------
+        # If using raw video, use _get_rawvideo; if using raw frames, use _get_rawframes
+        # video, video_mask = self._get_rawvideo(choice_video_ids)
         video, video_mask = self._get_rawframes(choice_video_ids)
         narration_mask = video_mask
 
+        # return pairs_text, pairs_mask, pairs_segment, video, video_mask
         return pairs_text, pairs_mask, pairs_segment, video, video_mask, narration, captions_word_mask, narration_mask

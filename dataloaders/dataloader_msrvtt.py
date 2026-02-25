@@ -30,7 +30,9 @@ class MSRVTT_DataLoader(Dataset):
             slice_framepos=0,
     ):
         self.data = pd.read_csv(csv_path)
+        # ----------- New: Load narration data -----------
         self.narration = json.load(open(narration_path, 'r'))
+        # -------------------------------------------
         self.features_path = features_path
         self.feature_framerate = feature_framerate
         self.max_words = max_words
@@ -44,24 +46,29 @@ class MSRVTT_DataLoader(Dataset):
         assert self.slice_framepos in [0, 1, 2]
 
         self.rawVideoExtractor = RawVideoExtractor(framerate=feature_framerate, size=image_resolution)
+        # ----------- New: rawFrameExtractor -----------
         self.rawFrameExtractor = RawFrameExtractor(size=image_resolution)
+        # ----------------------------------------------
         self.SPECIAL_TOKEN = {"CLS_TOKEN": "<|startoftext|>", "SEP_TOKEN": "<|endoftext|>",
                               "MASK_TOKEN": "[MASK]", "UNK_TOKEN": "[UNK]", "PAD_TOKEN": "[PAD]"}
         
+        # ----------- New: narration dict -----------
         self.narration_dict = {}
         for item in self.narration:
             video_file = item['video_file']
             narration = [item[f'caption_{i}'] for i in range(1, len(item))]
             self.narration_dict[video_file] = narration
+        # -------------------------------------------
 
+    # ------ Same CLIP4Clip --------
     def __len__(self):
         return len(self.data)
 
     def _get_text(self, video_id, sentence):
         choice_video_ids = [video_id]
-        n_text = len(choice_video_ids)
+        n_caption = len(choice_video_ids)
 
-        k = n_text
+        k = n_caption
         pairs_text = np.zeros((k, self.max_words), dtype=np.long)
         pairs_mask = np.zeros((k, self.max_words), dtype=np.long)
         pairs_segment = np.zeros((k, self.max_words), dtype=np.long)
@@ -138,7 +145,9 @@ class MSRVTT_DataLoader(Dataset):
             video_mask[i][:v_length] = [1] * v_length
 
         return video, video_mask
+    # ----------------------------------------------
 
+    # ------ New: get rawframes instead of rawvideo --------
     def _get_rawframes(self, choice_video_ids):
         video_mask = np.zeros((len(choice_video_ids), self.max_frames), dtype=np.long)
         max_video_length = [0] * len(choice_video_ids)
@@ -183,7 +192,9 @@ class MSRVTT_DataLoader(Dataset):
             video_mask[i][:v_length] = [1] * v_length
 
         return video, video_mask
+    # ----------------------------------------------
     
+    # ------ New: get narration data --------
     def _get_narration(self, choice_video_ids):
 
         narration = np.zeros((len(choice_video_ids), self.max_frames, self.max_words), dtype=np.long)
@@ -213,16 +224,21 @@ class MSRVTT_DataLoader(Dataset):
                 caption_word_masks[video_idx][caption_idx] = np.array(input_mask)
 
         return narration, caption_word_masks
+    # ----------------------------------------------
 
+    # ------ Same CLIP4Clip, but use _get_rawframes --------
     def __getitem__(self, idx):
         video_id = self.data['video_id'].values[idx]
-        text = self.data['sentence'].values[idx]
+        sentence = self.data['sentence'].values[idx]
 
-        pairs_text, pairs_mask, pairs_segment, choice_video_ids = self._get_text(video_id, text)
+        pairs_text, pairs_mask, pairs_segment, choice_video_ids = self._get_text(video_id, sentence)
         narration, caption_word_mask = self._get_narration(choice_video_ids)
+        # If using raw video, use _get_rawvideo; if using raw frames, use _get_rawframes
+        # video, video_mask = self._get_rawvideo(choice_video_ids)
         video, video_mask = self._get_rawframes(choice_video_ids)
         narration_mask = video_mask
 
+        # return pairs_text, pairs_mask, pairs_segment, video, video_mask
         return pairs_text, pairs_mask, pairs_segment, video, video_mask, narration, caption_word_mask, narration_mask
 
 class MSRVTT_TrainDataLoader(Dataset):
@@ -244,7 +260,9 @@ class MSRVTT_TrainDataLoader(Dataset):
     ):
         self.csv = pd.read_csv(csv_path)
         self.data = json.load(open(json_path, 'r'))
+        ## ----------- New: Load narration data -----------
         self.narration = json.load(open(narration_path, 'r'))
+        ## --------------------------------------------
         self.features_path = features_path
         self.feature_framerate = feature_framerate
         self.max_words = max_words
@@ -286,21 +304,25 @@ class MSRVTT_TrainDataLoader(Dataset):
             self.sample_len = len(self.csv)
 
         self.rawVideoExtractor = RawVideoExtractor(framerate=feature_framerate, size=image_resolution)
+        # ----------- New: rawFrameExtractor -----------
         self.rawFrameExtractor = RawFrameExtractor(size=image_resolution)
+        # ----------------------------------------------
         self.SPECIAL_TOKEN = {"CLS_TOKEN": "<|startoftext|>", "SEP_TOKEN": "<|endoftext|>",
                               "MASK_TOKEN": "[MASK]", "UNK_TOKEN": "[UNK]", "PAD_TOKEN": "[PAD]"}
         
+        # ----------- New: narration dict -----------
         self.narration_dict = {}
         for item in self.narration:
             video_file = item['video_file']
             narration = [item[f'caption_{i}'] for i in range(1, len(item))]
             self.narration_dict[video_file] = narration
+        # -------------------------------------------
 
-
+    # ------ Same CLIP4Clip --------
     def __len__(self):
         return self.sample_len
 
-    def _get_text(self, video_id, text=None):
+    def _get_text(self, video_id, caption=None):
         k = 1
         choice_video_ids = [video_id]
         pairs_text = np.zeros((k, self.max_words), dtype=np.long)
@@ -308,8 +330,8 @@ class MSRVTT_TrainDataLoader(Dataset):
         pairs_segment = np.zeros((k, self.max_words), dtype=np.long)
 
         for i, video_id in enumerate(choice_video_ids):
-            if text is not None:
-                words = self.tokenizer.tokenize(text)
+            if caption is not None:
+                words = self.tokenizer.tokenize(caption)
             else:
                 words = self._get_single_text(video_id)
 
@@ -338,8 +360,8 @@ class MSRVTT_TrainDataLoader(Dataset):
 
     def _get_single_text(self, video_id):
         rind = random.randint(0, len(self.sentences[video_id]) - 1)
-        text = self.sentences[video_id][rind]
-        words = self.tokenizer.tokenize(text)
+        caption = self.sentences[video_id][rind]
+        words = self.tokenizer.tokenize(caption)
         return words
 
     def _get_rawvideo(self, choice_video_ids):
@@ -358,12 +380,10 @@ class MSRVTT_TrainDataLoader(Dataset):
 
             raw_video_data = self.rawVideoExtractor.get_video_data(video_path)
             raw_video_data = raw_video_data['video']
-
             if len(raw_video_data.shape) > 3:
                 raw_video_data_clip = raw_video_data
                 # L x T x 3 x H x W
                 raw_video_slice = self.rawVideoExtractor.process_raw_data(raw_video_data_clip)
-
                 if self.max_frames < raw_video_slice.shape[0]:
                     if self.slice_framepos == 0:
                         video_slice = raw_video_slice[:self.max_frames, ...]
@@ -390,8 +410,9 @@ class MSRVTT_TrainDataLoader(Dataset):
             video_mask[i][:v_length] = [1] * v_length
 
         return video, video_mask
+    # ----------------------------------------------
 
-
+    # ----- New: get rawframes instead of rawvideo --------
     def _get_rawframes(self, choice_video_ids):
         video_mask = np.zeros((len(choice_video_ids), self.max_frames), dtype=np.long)
         max_video_length = [0] * len(choice_video_ids)
@@ -435,7 +456,9 @@ class MSRVTT_TrainDataLoader(Dataset):
             video_mask[i][:v_length] = [1] * v_length
 
         return video, video_mask
+    # ----------------------------------------------
     
+    # ----- New: get narration data --------
     def _get_narration(self, choice_video_ids):
 
         narration = np.zeros((len(choice_video_ids), self.max_frames, self.max_words), dtype=np.long)
@@ -465,17 +488,24 @@ class MSRVTT_TrainDataLoader(Dataset):
                 caption_word_masks[video_idx][caption_idx] = np.array(input_mask)
 
         return narration, caption_word_masks
+    # ----------------------------------------------
 
+    # ------ Same CLIP4Clip, but use _get_rawframes and _get_narration --------
     def __getitem__(self, idx):
         if self.unfold_sentences:
-            video_id, text = self.sentences_dict[idx]
+            video_id, caption = self.sentences_dict[idx]
         else:
-            video_id, text = self.csv['video_id'].values[idx], None
-        pairs_text, pairs_mask, pairs_segment, choice_video_ids = self._get_text(video_id, text)
+            video_id, caption = self.csv['video_id'].values[idx], None
+        pairs_text, pairs_mask, pairs_segment, choice_video_ids = self._get_text(video_id, caption)
+        # ------------------- New: get narration data -----------
         narration, caption_word_mask = self._get_narration(choice_video_ids)
+        # -----------------------------------------------------------
+        # If using raw video, use _get_rawvideo; if using raw frames, use _get_rawframes
+        # video, video_mask = self._get_rawvideo(choice_video_ids)
         video, video_mask = self._get_rawframes(choice_video_ids)
         narration_mask = video_mask
         
+        # return pairs_text, pairs_mask, pairs_segment, video, video_mask
         return pairs_text, pairs_mask, pairs_segment, video, video_mask, narration, caption_word_mask, narration_mask
 
 
