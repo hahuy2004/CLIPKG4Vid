@@ -32,7 +32,9 @@ def get_args(description='CLIPKG4Vid on Retrieval Task'):
     parser.add_argument('--train_csv', type=str, default='data/.train.csv', help='')
     parser.add_argument('--val_csv', type=str, default='data/.val.csv', help='')
     parser.add_argument('--data_path', type=str, default='data/caption.pickle', help='data json file path')
+    # --- New: add --narration_path for frame-level caption data
     parser.add_argument('--narration_path', type=str, default='data/caption.pickle', help='caption json file path')
+    # ------------------------------------------------------
     parser.add_argument('--features_path', type=str, default='data/videos_feature.pickle', help='feature path')
 
     parser.add_argument('--num_thread_reader', type=int, default=1, help='')
@@ -48,12 +50,20 @@ def get_args(description='CLIPKG4Vid on Retrieval Task'):
     parser.add_argument('--max_frames', type=int, default=100, help='')
     parser.add_argument('--feature_framerate', type=int, default=1, help='')
     parser.add_argument('--margin', type=float, default=0.1, help='margin for loss')
+    # --- NEW APPROACH - Statistical-based Hard Negative Selection ---
+    # parser.add_argument('--hard_negative_rate', type=float, default=0.5, help='rate of intra negative sample')
+    # parser.add_argument('--negative_weighting', type=int, default=1, help='Weight the loss for intra negative')
     parser.add_argument('--hard_negative_selection_factor', type=float, default=0.7, help='scale factor for hard negative selection')
     parser.add_argument('--hard_negative_loss_factor', type=float, default=1.8, help='scale factor for hard negative loss')
+    # alpha in formula loss = tv_nce_loss + tn_nce_loss + α * (tv_hard_neg_loss + tn_hard_neg_loss)
     parser.add_argument('--hard_negative_weighting', type=float, default=1, help='Weight the hard negative loss')
+    # --- NEW - Query-Aware Adaptive Filtering
+    # add --nucleus_P and --temperature for nucleus sampling in hard negative selection
     parser.add_argument('--nucleus_P', type=float, default=0.4, help='Cumulative value for nucleus filtering')
     parser.add_argument('--temperature', type=float, default=0.1, help='temperature value for softmax')
+    # -------------------------------------------------------
     parser.add_argument('--n_pair', type=int, default=1, help='Num of pair to output from data loader')
+    parser.add_argument('--max_steps', type=int, default=-1, help='Maximum number of steps to run for training/evaluation (-1 means no limit)')
 
     parser.add_argument("--output_dir", default=None, type=str, required=True,
                         help="The output directory where the model predictions and checkpoints will be written.")
@@ -268,9 +278,13 @@ def train_epoch(epoch, args, model, train_dataloader, device, n_gpu, optimizer, 
             # multi-gpu does scattering it-self
             batch = tuple(t.to(device=device, non_blocking=True) for t in batch)
 
+        # --- New: add narration to the batch ---
+        # input_ids, input_mask, segment_ids, video, video_mask = batch
+        # loss = model(input_ids, segment_ids, input_mask, video, video_mask)
         input_ids, input_mask, segment_ids, video, video_mask, narration, narration_word_mask, narration_mask = batch
         loss = model(input_ids, segment_ids, input_mask, video, video_mask, narration, narration_word_mask, narration_mask)
-        
+        # ---------------------------------------
+
         if n_gpu > 1:
             loss = loss.mean()  # mean() to average on multi-gpu.
         if args.gradient_accumulation_steps > 1:
@@ -300,13 +314,25 @@ def train_epoch(epoch, args, model, train_dataloader, device, n_gpu, optimizer, 
                 logger.info("Epoch: %d/%s, Step: %d/%d, Lr: %s, Loss: %f, Time/step: %f", epoch + 1,
                             args.epochs, step + 1,
                             len(train_dataloader), "-".join([str('%.9f'%itm) for itm in sorted(list(set(optimizer.get_lr())))]),
-                            float(loss), 
+                            float(loss),
                             (time.time() - start_time) / (log_step * args.gradient_accumulation_steps))
                 start_time = time.time()
+        
+        # Check if max_steps is reached
+        if args.max_steps > 0 and step + 1 >= args.max_steps:
+            if local_rank == 0:
+                logger.info("Reached max_steps (%d), stopping training for this epoch.", args.max_steps)
+            break
 
-    total_loss = total_loss / len(train_dataloader)
+    # Calculate average loss based on actual number of steps executed
+    actual_steps = min(step + 1, len(train_dataloader)) if args.max_steps <= 0 else min(step + 1, args.max_steps)
+    # total_loss = total_loss / len(train_dataloader)
+    total_loss = total_loss / actual_steps
     return total_loss, global_step
 
+# New: Using 4 separate similarity matrices to calculate the metrics, 
+# which is more efficient than calculating the metrics for each pair of sentences and videos.
+# Despite 1 sim_matrix like CLIP4Clip
 def _run_on_single_gpu(model, batch_list_t, batch_list_v, batch_list_n, batch_sequence_output_list, batch_word_output_list, 
                        batch_visual_output_list, batch_narration_output_list):
     sim_matrix_T2V_coarse = []
@@ -433,8 +459,11 @@ def eval_epoch(args, model, test_dataloader, device, n_gpu):
                 batch_visual_output_list.append(visual_output)
                 batch_list_v.append((video_mask,))
 
-            print("{}/{}\r".format(bid, len(test_dataloader)), end="")
-
+            print("{}/{}\r".format(bid, len(test_dataloader)), end="")            
+            # Check if max_steps is reached for evaluation
+            if args.max_steps > 0 and bid + 1 >= args.max_steps:
+                logger.info("Reached max_steps (%d) for evaluation, stopping.", args.max_steps)
+                break
         # ----------------------------------
         # 2. calculate the similarity
         # ----------------------------------

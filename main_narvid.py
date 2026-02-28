@@ -54,6 +54,7 @@ def get_args(description='NarVid on Retrieval Task'):
     parser.add_argument('--nucleus_P', type=float, default=0.4, help='Cumulative value for nucleus filtering')
     parser.add_argument('--temperature', type=float, default=0.1, help='temperature value for softmax')
     parser.add_argument('--n_pair', type=int, default=1, help='Num of pair to output from data loader')
+    parser.add_argument('--max_steps', type=int, default=-1, help='Maximum number of steps to run for training/evaluation (-1 means no limit)')
 
     parser.add_argument("--output_dir", default=None, type=str, required=True,
                         help="The output directory where the model predictions and checkpoints will be written.")
@@ -303,8 +304,17 @@ def train_epoch(epoch, args, model, train_dataloader, device, n_gpu, optimizer, 
                             float(loss), 
                             (time.time() - start_time) / (log_step * args.gradient_accumulation_steps))
                 start_time = time.time()
+        
+        # Check if max_steps is reached
+        if args.max_steps > 0 and step + 1 >= args.max_steps:
+            if local_rank == 0:
+                logger.info("Reached max_steps (%d), stopping training for this epoch.", args.max_steps)
+            break
 
-    total_loss = total_loss / len(train_dataloader)
+    # Calculate average loss based on actual number of steps executed
+    actual_steps = min(step + 1, len(train_dataloader)) if args.max_steps <= 0 else min(step + 1, args.max_steps)
+    # total_loss = total_loss / len(train_dataloader)
+    total_loss = total_loss / actual_steps
     return total_loss, global_step
 
 def _run_on_single_gpu(model, batch_list_t, batch_list_v, batch_list_n, batch_sequence_output_list, batch_word_output_list, 
@@ -433,8 +443,11 @@ def eval_epoch(args, model, test_dataloader, device, n_gpu):
                 batch_visual_output_list.append(visual_output)
                 batch_list_v.append((video_mask,))
 
-            print("{}/{}\r".format(bid, len(test_dataloader)), end="")
-
+            print("{}/{}\r".format(bid, len(test_dataloader)), end="")            
+            # Check if max_steps is reached for evaluation
+            if args.max_steps > 0 and bid + 1 >= args.max_steps:
+                logger.info("Reached max_steps (%d) for evaluation, stopping.", args.max_steps)
+                break
         # ----------------------------------
         # 2. calculate the similarity
         # ----------------------------------
