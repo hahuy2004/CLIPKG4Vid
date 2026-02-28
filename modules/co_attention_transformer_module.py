@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 import math
+
 class BertBiAttention(nn.Module):
     def __init__(self,num_attention_heads=8,hidden_size=512,dropout_rate=0.1):
         super(BertBiAttention, self).__init__()
@@ -9,7 +10,7 @@ class BertBiAttention(nn.Module):
                 "The hidden size (%d) is not a multiple of the number of attention "
                 "heads (%d)" % (hidden_size, num_attention_heads) )
         self.num_attention_heads = num_attention_heads
-        self.attention_head_size = int(hidden_size / num_attention_heads) #每个头的维度
+        self.attention_head_size = int(hidden_size / num_attention_heads)
         self.all_head_size = self.num_attention_heads * self.attention_head_size
         self.query1 = nn.Linear(hidden_size, self.all_head_size)
         self.key1 = nn.Linear(hidden_size, self.all_head_size)
@@ -208,6 +209,7 @@ class Co_attention_block(nn.Module):
         text_intermediate_output = self.t_intermediate(text_attention_output)
         text_layer_output = self.t_output(text_intermediate_output, text_attention_output)
         return vision_layer_output, text_layer_output, co_attention_probs
+
 if __name__ == "__main__":
     co_attention_block = Co_attention_block(hidden_size=512,num_attention_heads=8,dropout_rate=0.1)
     vision_input_tensor = torch.ones([1, 8, 512])

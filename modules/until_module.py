@@ -189,14 +189,33 @@ class PreTrainedModel(nn.Module):
 #         nce_loss = -logpt
 #         sim_loss = nce_loss.mean()
 #         return sim_loss
-    
+
+# ------- From Cap4Video -------
+class cosface(nn.Module):
+    def __init__(self, s=30.0, m=0.35):
+        super(cosface, self).__init__()
+        self.scale = s
+        self.margin = m
+
+    def forward(self, sim_matrix):
+        # label = torch.arange(sim_matrix.size(0)).to(sim_matrix.device)
+        # one_hot = torch.zeros_like(sim_matrix).to(sim_matrix.device)
+        # one_hot = one_hot.scatter(1, label.view(-1, 1), 1.0)
+
+        one_hot = torch.eye(sim_matrix.size(0)).to(sim_matrix.device)
+        logit = self.scale * (sim_matrix - one_hot * self.margin)
+        return logit
+# ------------------------------    
+
 class CrossEn(nn.Module):
-    def __init__(self):
+    def __init__(self,):
         super(CrossEn, self).__init__()
 
     def forward(self, sim_matrix):
-        if sim_matrix.dim() == 1:  # 1차원 벡터인 경우
-            sim_matrix = sim_matrix.unsqueeze(0)  # 행렬로 변환
+        # --- Handle the case when sim_matrix is a 1D vector (e.g., batch size of 1) ---
+        if sim_matrix.dim() == 1:  # If sim_matrix is a 1D vector
+            sim_matrix = sim_matrix.unsqueeze(0)  # Convert to a matrix
+        # --------------------------------------------------------------
         
         logpt = F.log_softmax(sim_matrix, dim=-1)
         logpt = torch.diag(logpt)
@@ -264,6 +283,8 @@ class MaxMarginRankingLoss(nn.Module):
             max_margin = max_margin * self.mm_mask.to(max_margin.device)
         return max_margin.mean()
     
+# -------- New: Hard-Negative NCE Loss --------
+# => Có thể dùng HardNegativeNCE() để thử nghiệm thay thế cho CrossEn()
 class HardNegativeNCE(nn.Module):
     """
     Hard-Negative NCE loss for contrastive learning.
@@ -319,6 +340,7 @@ class HardNegativeNCE(nn.Module):
         ).mean()
 
         return hn_nce_loss
+# ----------------------------------------------
 
 class AllGather(torch.autograd.Function):
     """An autograd function that performs allgather on a tensor."""
