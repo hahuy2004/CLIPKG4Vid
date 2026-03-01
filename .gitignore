@@ -18,5 +18,10 @@
 /datasets/Vatex/frames
 /datasets/DiDeMo/frames
 
+/datasets/MSRVTT/msrvtt_data
+/datasets/MSVD/msvd_data
+
 /datasets/MSRVTT/frames.zip
 /datasets/MSVD/frames.zip
+/datasets/MSRVTT/msrvtt_data.zip
+/datasets/MSVD/msvd_data.zip
