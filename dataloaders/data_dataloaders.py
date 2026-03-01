@@ -20,6 +20,7 @@ def dataloader_msrvtt_train(args, tokenizer):
         unfold_sentences=args.expand_msrvtt_sentences,
         frame_order=args.train_frame_order,
         slice_framepos=args.slice_framepos,
+        video_data_type=args.video_data_type,
     )
 
     train_sampler = torch.utils.data.distributed.DistributedSampler(msrvtt_dataset)
@@ -46,6 +47,7 @@ def dataloader_msrvtt_test(args, tokenizer, subset="test"):
         max_frames=args.max_frames,
         frame_order=args.eval_frame_order,
         slice_framepos=args.slice_framepos,
+        video_data_type=args.video_data_type,
     )
     dataloader_msrvtt = DataLoader(
         msrvtt_testset,
@@ -69,6 +71,7 @@ def dataloader_msvd_train(args, tokenizer):
         max_frames=args.max_frames,
         frame_order=args.train_frame_order,
         slice_framepos=args.slice_framepos,
+        video_data_type=args.video_data_type,
     )
 
     train_sampler = torch.utils.data.distributed.DistributedSampler(msvd_dataset)
@@ -96,6 +99,7 @@ def dataloader_msvd_test(args, tokenizer, subset="test"):
         max_frames=args.max_frames,
         frame_order=args.eval_frame_order,
         slice_framepos=args.slice_framepos,
+        video_data_type=args.video_data_type,
     )
     dataloader_msrvtt = DataLoader(
         msvd_testset,
@@ -118,6 +122,7 @@ def dataloader_vatex_train(args, tokenizer):
         max_frames=args.max_frames,
         frame_order=args.train_frame_order,
         slice_framepos=args.slice_framepos,
+        video_data_type=args.video_data_type,
     )
 
     train_sampler = torch.utils.data.distributed.DistributedSampler(vatex_dataset)
@@ -145,6 +150,7 @@ def dataloader_vatex_test(args, tokenizer, subset="test"):
         max_frames=args.max_frames,
         frame_order=args.eval_frame_order,
         slice_framepos=args.slice_framepos,
+        video_data_type=args.video_data_type,
     )
     dataloader_vatex = DataLoader(
         vatex_testset,
@@ -167,6 +173,7 @@ def dataloader_didemo_train(args, tokenizer):
         max_frames=args.max_frames,
         frame_order=args.train_frame_order,
         slice_framepos=args.slice_framepos,
+        video_data_type=args.video_data_type,
     )
 
     train_sampler = torch.utils.data.distributed.DistributedSampler(didemo_dataset)
@@ -194,6 +201,7 @@ def dataloader_didemo_test(args, tokenizer, subset="test"):
         max_frames=args.max_frames,
         frame_order=args.eval_frame_order,
         slice_framepos=args.slice_framepos,
+        video_data_type=args.video_data_type,
     )
     dataloader_didemo = DataLoader(
         didemo_testset,

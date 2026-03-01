@@ -125,8 +125,8 @@ def main():
 
     video_saver = RawVideoFrameSaverCV2(framerate=1)
 
-    video_files = glob.glob(args.raw_video_path, "*")
-    base_dir = args.extract_frame_path
+    video_files = glob.glob(os.path.join(args.raw_video_path, "*"))
+    base_dir = args.extracted_frame_path
 
     for i, video_file in enumerate(video_files):
         print(f'{i}: {video_file}')

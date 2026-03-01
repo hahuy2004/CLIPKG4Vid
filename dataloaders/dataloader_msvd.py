@@ -26,6 +26,7 @@ class MSVD_DataLoader(Dataset):
             image_resolution=224,
             frame_order=0,
             slice_framepos=0,
+            video_data_type='frames',
     ):
         self.data_path = data_path
         # -------------------- New: load narration data from narration_path -----------
@@ -42,6 +43,10 @@ class MSVD_DataLoader(Dataset):
         # 0: cut from head frames; 1: cut from tail frames; 2: extract frames uniformly.
         self.slice_framepos = slice_framepos
         assert self.slice_framepos in [0, 1, 2]
+        # ----------- New: video_data_type -----------
+        self.video_data_type = video_data_type
+        assert self.video_data_type in ['video', 'frames']
+        # -------------------------------------------
 
         self.subset = subset
         assert self.subset in ["train", "val", "test"]
@@ -270,7 +275,7 @@ class MSVD_DataLoader(Dataset):
         return narration, caption_word_masks
     # ----------------------------------------------
 
-    # ----- New: get narration data and rawframes data, for narration-video retrieval -------- 
+    # ----- New: get narration data and now can choose between rawvideo and rawframes -------- 
     def __getitem__(self, idx):
         video_id, caption = self.sentences_dict[idx]
 
@@ -278,9 +283,11 @@ class MSVD_DataLoader(Dataset):
         # ------------------- New: get narration data -----------
         narration, captions_word_mask = self._get_narration(choice_video_ids)
         # -----------------------------------------------------------
-        # If using raw video, use _get_rawvideo; if using raw frames, use _get_rawframes
-        # video, video_mask = self._get_rawvideo(choice_video_ids)
-        video, video_mask = self._get_rawframes(choice_video_ids)
+        # Choose between raw video or raw frames based on video_data_type
+        if self.video_data_type == 'video':
+            video, video_mask = self._get_rawvideo(choice_video_ids)
+        else:  # 'frames'
+            video, video_mask = self._get_rawframes(choice_video_ids)
         narration_mask = video_mask
 
         # return pairs_text, pairs_mask, pairs_segment, video, video_mask

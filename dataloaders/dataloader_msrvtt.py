@@ -28,6 +28,7 @@ class MSRVTT_DataLoader(Dataset):
             image_resolution=224,
             frame_order=0,
             slice_framepos=0,
+            video_data_type='frames',
     ):
         self.data = pd.read_csv(csv_path)
         # ----------- New: Load narration data -----------
@@ -44,6 +45,10 @@ class MSRVTT_DataLoader(Dataset):
         # 0: cut from head frames; 1: cut from tail frames; 2: extract frames uniformly.
         self.slice_framepos = slice_framepos
         assert self.slice_framepos in [0, 1, 2]
+        # ----------- New: video_data_type -----------
+        self.video_data_type = video_data_type
+        assert self.video_data_type in ['video', 'frames']
+        # -------------------------------------------
 
         self.rawVideoExtractor = RawVideoExtractor(framerate=feature_framerate, size=image_resolution)
         # ----------- New: rawFrameExtractor -----------
@@ -226,16 +231,18 @@ class MSRVTT_DataLoader(Dataset):
         return narration, caption_word_masks
     # ----------------------------------------------
 
-    # ------ Same CLIP4Clip, but use _get_rawframes --------
+    # ------ Same CLIP4Clip, but now can choose between rawvideo and rawframes --------
     def __getitem__(self, idx):
         video_id = self.data['video_id'].values[idx]
         sentence = self.data['sentence'].values[idx]
 
         pairs_text, pairs_mask, pairs_segment, choice_video_ids = self._get_text(video_id, sentence)
         narration, caption_word_mask = self._get_narration(choice_video_ids)
-        # If using raw video, use _get_rawvideo; if using raw frames, use _get_rawframes
-        # video, video_mask = self._get_rawvideo(choice_video_ids)
-        video, video_mask = self._get_rawframes(choice_video_ids)
+        # Choose between raw video or raw frames based on video_data_type
+        if self.video_data_type == 'video':
+            video, video_mask = self._get_rawvideo(choice_video_ids)
+        else:  # 'frames'
+            video, video_mask = self._get_rawframes(choice_video_ids)
         narration_mask = video_mask
 
         # return pairs_text, pairs_mask, pairs_segment, video, video_mask
@@ -257,6 +264,7 @@ class MSRVTT_TrainDataLoader(Dataset):
             image_resolution=224,
             frame_order=0,
             slice_framepos=0,
+            video_data_type='frames',
     ):
         self.csv = pd.read_csv(csv_path)
         self.data = json.load(open(json_path, 'r'))
@@ -274,6 +282,10 @@ class MSRVTT_TrainDataLoader(Dataset):
         # 0: cut from head frames; 1: cut from tail frames; 2: extract frames uniformly.
         self.slice_framepos = slice_framepos
         assert self.slice_framepos in [0, 1, 2]
+        # ----------- New: video_data_type -----------
+        self.video_data_type = video_data_type
+        assert self.video_data_type in ['video', 'frames']
+        # -------------------------------------------
 
         self.unfold_sentences = unfold_sentences
         self.sample_len = 0
@@ -490,7 +502,7 @@ class MSRVTT_TrainDataLoader(Dataset):
         return narration, caption_word_masks
     # ----------------------------------------------
 
-    # ------ Same CLIP4Clip, but use _get_rawframes and _get_narration --------
+    # ------ Same CLIP4Clip, but now can choose between rawvideo and rawframes --------
     def __getitem__(self, idx):
         if self.unfold_sentences:
             video_id, caption = self.sentences_dict[idx]
@@ -500,9 +512,11 @@ class MSRVTT_TrainDataLoader(Dataset):
         # ------------------- New: get narration data -----------
         narration, caption_word_mask = self._get_narration(choice_video_ids)
         # -----------------------------------------------------------
-        # If using raw video, use _get_rawvideo; if using raw frames, use _get_rawframes
-        # video, video_mask = self._get_rawvideo(choice_video_ids)
-        video, video_mask = self._get_rawframes(choice_video_ids)
+        # Choose between raw video or raw frames based on video_data_type
+        if self.video_data_type == 'video':
+            video, video_mask = self._get_rawvideo(choice_video_ids)
+        else:  # 'frames'
+            video, video_mask = self._get_rawframes(choice_video_ids)
         narration_mask = video_mask
         
         # return pairs_text, pairs_mask, pairs_segment, video, video_mask

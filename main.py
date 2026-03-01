@@ -64,6 +64,8 @@ def get_args(description='CLIPKG4Vid on Retrieval Task'):
     # -------------------------------------------------------
     parser.add_argument('--n_pair', type=int, default=1, help='Num of pair to output from data loader')
     parser.add_argument('--max_steps', type=int, default=-1, help='Maximum number of steps to run for training/evaluation (-1 means no limit)')
+    parser.add_argument('--video_data_type', type=str, default='frames', choices=['video', 'frames'],
+                        help='Type of video data to use: "video" for raw video files (.mp4), "frames" for extracted frames')
 
     parser.add_argument("--output_dir", default=None, type=str, required=True,
                         help="The output directory where the model predictions and checkpoints will be written.")

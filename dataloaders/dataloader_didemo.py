@@ -24,6 +24,7 @@ class DiDeMo_DataLoader(Dataset):
             image_resolution=224,
             frame_order=0,
             slice_framepos=0,
+            video_data_type='frames',
     ):
         self.data_path = data_path
         self.narration = json.load(open(narration_path, 'r'))
@@ -38,6 +39,10 @@ class DiDeMo_DataLoader(Dataset):
         # 0: cut from head frames; 1: cut from tail frames; 2: extract frames uniformly.
         self.slice_framepos = slice_framepos
         assert self.slice_framepos in [0, 1, 2]
+        # ----------- New: video_data_type -----------
+        self.video_data_type = video_data_type
+        assert self.video_data_type in ['video', 'frames']
+        # -------------------------------------------
 
         self.subset = subset
         assert self.subset in ["train", "val", "test"]
@@ -310,7 +315,11 @@ class DiDeMo_DataLoader(Dataset):
         pairs_text, pairs_mask, pairs_segment = self._get_text(video_id, sub_id)
         video_id = [video_id]
         narration, captions_word_mask = self._get_narration(video_id)
-        video, video_mask = self._get_rawframes(video_id)
+        # Choose between raw video or raw frames based on video_data_type
+        if self.video_data_type == 'video':
+            video, video_mask = self._get_rawvideo(video_id, self.query_dict[video_id[0]]['start'][sub_id], self.query_dict[video_id[0]]['end'][sub_id])
+        else:  # 'frames'
+            video, video_mask = self._get_rawframes(video_id)
         narration_mask = video_mask
 
         return pairs_text, pairs_mask, pairs_segment, video, video_mask, narration, captions_word_mask, narration_mask
