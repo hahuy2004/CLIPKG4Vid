@@ -1,16 +1,16 @@
-# Narrating the Video: Boosting Text-Video Retrieval via Comprehensive Utilization of Frame-Level Captions
+# CLIPKG4Vid: Boosting Text-Video Retrieval via Comprehensive Utilization of Frame-Level Captions
 
-The official implementation of NarVid — a framework that enhances text-video retrieval by leveraging frame-level captions (narration) to improve semantic understanding and retrieval accuracy. NarVid employs cross-modal interactions, query-aware filtering, dual-modal matching, and hard-negative loss, achieving SOTA results on MSR-VTT, MSVD, VATEX and DiDeMo.
+The official implementation of CLIPKG4Vid — a framework that enhances text-video retrieval by leveraging frame-level captions (narration) to improve semantic understanding and retrieval accuracy. CLIPKG4Vid employs cross-modal interactions, query-aware filtering, dual-modal matching, and hard-negative loss, achieving SOTA results on MSR-VTT, MSVD, VATEX and DiDeMo.
 ![framework](/docs/framework.png)
 
 ## News
 [Feb 27, 2025] Our paper has been accepted to CVPR 2025
 
 ## Requirements
-This project requires two environments: one for `NarVid`, which serves as the main framework, 
+This project requires two environments: one for `CLIPKG4Vid`, which serves as the main framework, 
 and one for `LLaVa`, which is used for preprocessing to generate narrations.
 
-### Setting up the Main NarVid Environment
+### Setting up the Main CLIPKG4Vid Environment
 ```sh
 conda install --yes -c pytorch pytorch=1.13.1 torchvision cudatoolkit=11.6
 pip install opencv-python==4.9.0.80 numpy==1.23.0 ftfy regex tqdm boto3 requests pandas
@@ -45,12 +45,18 @@ Raw videos can be download from [LisaAnne/LocalizingMoments.](https://github.com
 
 For convenient reproduction of our research, we provide both data preprocessing scripts and pre-generated narration files.
 
+### Compress Video for Speed-up (optional)
+```sh
+python preprocess/compress_video.py --input_root [raw_video_path] --output_root [compressed_video_path]
+```
+This script will compress the video to *3fps* with width *224* (or height *224*). Modify the variables for your customization.
+
 ### Extract Video Frames
 
 Before generating captions for each frame, you need to perform preprocessing on the raw video to extract the frames.
 
 ```sh
-python preprocess/video_frame_extractor.py --raw_video_folder [your_raw_video_folder_path] --extracted_frame_path [your_output_frame_path]
+python preprocess/video_frame_extractor.py --raw_video_path [your_raw_video_folder_path] --extracted_frame_path [your_output_frame_path]
 ```
 
 ### Generate Narration from Frames
