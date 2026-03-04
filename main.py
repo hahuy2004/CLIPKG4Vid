@@ -342,6 +342,8 @@ def _run_on_single_gpu(model, batch_list_t, batch_list_v, batch_list_n, batch_se
     sim_matrix_T2V_fine = []
     sim_matrix_T2N_fine = []
 
+    total_text_batches = len(batch_list_t)
+    
     for idx1, b1 in enumerate(batch_list_t):
         input_mask, segment_ids, *_tmp = b1
         sequence_output = batch_sequence_output_list[idx1]
@@ -375,6 +377,11 @@ def _run_on_single_gpu(model, batch_list_t, batch_list_v, batch_list_n, batch_se
         sim_matrix_T2N_coarse.append(each_row_T2N_coarse)
         each_row_T2N_fine = np.concatenate(tuple(each_row_T2N_fine), axis=-1)
         sim_matrix_T2N_fine.append(each_row_T2N_fine)
+        
+        # Log progress every 10 text batches or at the end
+        if (idx1 + 1) % 10 == 0 or (idx1 + 1) == total_text_batches:
+            logger.info("Computing similarity: {}/{} text batches ({:.1f}%)".format(
+                idx1 + 1, total_text_batches, 100.0 * (idx1 + 1) / total_text_batches))
         
     return sim_matrix_T2V_coarse, sim_matrix_T2V_fine, sim_matrix_T2N_coarse, sim_matrix_T2N_fine
 
@@ -418,6 +425,10 @@ def eval_epoch(args, model, test_dataloader, device, n_gpu):
         # ----------------------------
         # 1. cache the features
         # ----------------------------
+        logger.info("[start] extract features")
+        total_batches = len(test_dataloader)
+        logger.info("Total batches: {}".format(total_batches))
+        
         for bid, batch in enumerate(test_dataloader):
             batch = tuple(t.to(device) for t in batch)
             input_ids, input_mask, segment_ids, video, video_mask, narration, narration_word_mask, narration_mask = batch
@@ -460,15 +471,20 @@ def eval_epoch(args, model, test_dataloader, device, n_gpu):
 
                 batch_visual_output_list.append(visual_output)
                 batch_list_v.append((video_mask,))
-
-            print("{}/{}\r".format(bid, len(test_dataloader)), end="")            
-            # Check if max_steps is reached for evaluation
-            if args.max_steps > 0 and bid + 1 >= args.max_steps:
-                logger.info("Reached max_steps (%d) for evaluation, stopping.", args.max_steps)
-                break
+            
+            # print("{}/{}\r".format(bid, len(test_dataloader)), end="")
+            # Log progress every 10 batches or at the end
+            if (bid + 1) % 10 == 0 or (bid + 1) == total_batches:
+                logger.info("Extracting features: {}/{} batches ({:.1f}%)".format(
+                    bid + 1, total_batches, 100.0 * (bid + 1) / total_batches))
+ 
+        logger.info("[finish] extract features")
+        logger.info("Cached {} text batches, {} video batches".format(
+            len(batch_list_t), len(batch_list_v)))
         # ----------------------------------
         # 2. calculate the similarity
         # ----------------------------------
+        logger.info("[start] calculate the similarity")
         if n_gpu > 1:
             device_ids = list(range(n_gpu))
             batch_list_t_splits = []
@@ -512,8 +528,10 @@ def eval_epoch(args, model, test_dataloader, device, n_gpu):
             parameters_tuple_list = [(batch_list_t_splits[dev_id], batch_list_v_splits[dev_id], batch_list_n_splits[dev_id], 
                                     batch_t_output_splits[dev_id], batch_w_output_splits[dev_id], batch_v_output_splits[dev_id], batch_n_output_splits[dev_id]) for dev_id in device_ids]
 
+            logger.info("Running similarity computation on {} GPUs...".format(n_gpu))
             parallel_outputs = parallel_apply(_run_on_single_gpu, model, parameters_tuple_list, device_ids)
 
+            logger.info("Aggregating results from {} GPUs...".format(n_gpu))
             TV_sim_matrix_coarse, TV_sim_matrix_fine, TN_sim_matrix_coarse, TN_sim_matrix_fine = [],[],[],[]
             for idx in range(len(parallel_outputs)):
                 TV_sim_matrix_coarse += parallel_outputs[idx][0]
@@ -538,7 +556,10 @@ def eval_epoch(args, model, test_dataloader, device, n_gpu):
             
             TV_sim_matrix = (TV_sim_matrix_coarse+TV_sim_matrix_fine)/2
             TN_sim_matrix = (TN_sim_matrix_coarse+TN_sim_matrix_fine)/2
-            
+    
+    logger.info("[finish] calculate the similarity")
+    logger.info("Similarity matrix shape: ({}, {})".format(TV_sim_matrix.shape[0], TV_sim_matrix.shape[1]))
+    
     R1 = get_score(TV_sim_matrix, TN_sim_matrix, multi_sentence_, cut_off_points_)
 
     return R1
@@ -555,6 +576,8 @@ def get_score(TV_sim_matrix, TN_sim_matrix, multi_sentence_, cut_off_points_):
 
     T2V_sim_matrix = V2T_sim_matrix = TV_sim_matrix + TN_sim_matrix
 
+    logger.info("[start] compute_metrics")
+    
     if multi_sentence_:
         logger.info("before reshape, sim matrix size: {} x {}".format(T2V_sim_matrix.shape[0], T2V_sim_matrix.shape[1]))
         cut_off_points2len_ = [itm + 1 for itm in cut_off_points_]
@@ -578,7 +601,8 @@ def get_score(TV_sim_matrix, TN_sim_matrix, multi_sentence_, cut_off_points_):
         tv_metrics = compute_metrics(T2V_sim_matrix)
         vt_metrics = compute_metrics(V2T_sim_matrix.T)
         logger.info('\t Length-T: {}, Length-V:{}'.format(len(T2V_sim_matrix), len(T2V_sim_matrix[0])))
-
+    
+    logger.info("[finish] compute_metrics")
     logger.info("Text-to-Video:")
     logger.info('\t>>>  R@1: {:.1f} - R@5: {:.1f} - R@10: {:.1f} - Median R: {:.1f} - Mean R: {:.1f}'.
                 format(tv_metrics['R1'], tv_metrics['R5'], tv_metrics['R10'], tv_metrics['MR'], tv_metrics['MeanR']))
