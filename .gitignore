@@ -18,10 +18,27 @@
 /datasets/Vatex/frames
 /datasets/DiDeMo/frames
 
+/datasets/MSRVTT/frames_max32
+/datasets/MSVD/frames_max32
+/datasets/Vatex/frames_max32
+/datasets/DiDeMo/frames_max32
+
 /datasets/MSRVTT/msrvtt_data
 /datasets/MSVD/msvd_data
+/datasets/DiDeMo/didemo_data
+/datasets/Vatex/vatex_data
 
 /datasets/MSRVTT/frames.zip
 /datasets/MSVD/frames.zip
+/datasets/Vatex/frames.zip
+/datasets/DiDeMo/frames.zip
+
+/datasets/MSRVTT/frames_max32.zip
+/datasets/MSVD/frames_max32.zip
+/datasets/Vatex/frames_max32.zip
+/datasets/DiDeMo/frames_max32.zip
+
 /datasets/MSRVTT/msrvtt_data.zip
 /datasets/MSVD/msvd_data.zip
+/datasets/DiDeMo/didemo_data.zip
+/datasets/Vatex/vatex_data.zip

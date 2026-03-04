@@ -91,6 +91,8 @@ class RawVideoExtractorCV2():
         return raw_video_data
 
 class RawVideoFrameSaverCV2(RawVideoExtractorCV2):
+    # MSRVTT, MSVD, Vatex: max_frames=12, slice_framepos=2
+    # DiDeMo: max_frames=32, slice_framepos=2
     def save_frames_as_jpg(self, video_file, output_dir, sample_fp=1, start_time=None, end_time=None, max_frames=32, slice_framepos=2):
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -133,7 +135,10 @@ def main():
         video_name = os.path.basename(video_file).split('.')[0]
         output_dir = os.path.join(base_dir, video_name)
         try:
-            video_saver.save_frames_as_jpg(video_file, output_dir, max_frames=32)
+            # MSRVTT, MSVD, Vatex: max_frames=12, slice_framepos=2
+            video_saver.save_frames_as_jpg(video_file, output_dir, max_frames=12)
+            # DiDeMo, ActivityNet: max_frames=32, slice_framepos=2
+            # video_saver.save_frames_as_jpg(video_file, output_dir, max_frames=32)
         except Exception as e:
             print(f"Error processing file {video_file}: {e}")
             traceback.print_exc()
