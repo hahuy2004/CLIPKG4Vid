@@ -92,7 +92,7 @@ class RawVideoExtractorCV2():
 
 class RawVideoFrameSaverCV2(RawVideoExtractorCV2):
     # MSRVTT, MSVD, Vatex: max_frames=12, slice_framepos=2
-    # DiDeMo: max_frames=32, slice_framepos=2
+    # DiDeMo, ActivityNet: max_frames=32, slice_framepos=2
     def save_frames_as_jpg(self, video_file, output_dir, sample_fp=1, start_time=None, end_time=None, max_frames=32, slice_framepos=2):
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
