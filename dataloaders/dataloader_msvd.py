@@ -109,7 +109,16 @@ class MSVD_DataLoader(Dataset):
         self.narration_dict = {}
         for item in self.narration:
             video_file = item['video_file']
-            narration = [item[f'caption_{i}'] for i in range(1, len(item))]
+            # narration_msvd.json:
+            # {
+            #     "video_file": "...",
+            #     "file_list": [...],
+            #     "caption_1": "..."
+            #     "caption_2": "..."
+            #     "caption_3": "..."
+            # }
+            # => len(item) = 5
+            narration = [item[f'caption_{i}'] for i in range(1, len(item) - 1)]
             self.narration_dict[video_file] = narration
         # ---------------------------------------------------------------------------
 

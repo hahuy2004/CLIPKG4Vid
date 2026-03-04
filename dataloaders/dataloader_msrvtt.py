@@ -61,6 +61,14 @@ class MSRVTT_DataLoader(Dataset):
         self.narration_dict = {}
         for item in self.narration:
             video_file = item['video_file']
+            # narration_msvd.json:
+            # {
+            #     "video_file": "...",
+            #     "caption_1": "..."
+            #     "caption_2": "..."
+            #     "caption_3": "..."
+            # }
+            # => len(item) = 4
             narration = [item[f'caption_{i}'] for i in range(1, len(item))]
             self.narration_dict[video_file] = narration
         # -------------------------------------------
