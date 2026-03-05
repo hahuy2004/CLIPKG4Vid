@@ -2,8 +2,6 @@ import os
 import sys
 import subprocess
 
-SUPPORTED_EXTENSIONS = (".mp4", ".avi", ".mov", ".mkv", ".flv", ".wmv")
-
 def convert_video(input_path, output_path):
     command = [
         "ffmpeg",
@@ -24,7 +22,8 @@ def convert_video(input_path, output_path):
         subprocess.run(command, check=True)
         print(f"Convert thành công: {output_path}")
     except subprocess.CalledProcessError:
-        print(f"Lỗi khi convert: {input_path}")
+        print(f"Bỏ qua file lỗi: {input_path}")
+
 
 def convert_folder(input_folder, output_folder):
     if not os.path.exists(input_folder):
@@ -34,16 +33,20 @@ def convert_folder(input_folder, output_folder):
     os.makedirs(output_folder, exist_ok=True)
 
     for filename in os.listdir(input_folder):
-        if filename.lower().endswith(SUPPORTED_EXTENSIONS):
-            input_path = os.path.join(input_folder, filename)
 
-            # Giữ nguyên tên file nhưng xuất ra mp4
-            name_without_ext = os.path.splitext(filename)[0]
-            output_filename = name_without_ext + ".mp4"
-            output_path = os.path.join(output_folder, output_filename)
+        input_path = os.path.join(input_folder, filename)
 
-            print(f"Đang convert: {filename}")
-            convert_video(input_path, output_path)
+        # bỏ qua folder
+        if not os.path.isfile(input_path):
+            continue
+
+        name_without_ext = os.path.splitext(filename)[0]
+        output_filename = name_without_ext + ".mp4"
+        output_path = os.path.join(output_folder, output_filename)
+
+        print(f"Đang convert: {filename}")
+        convert_video(input_path, output_path)
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
