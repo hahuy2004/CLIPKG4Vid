@@ -3,9 +3,6 @@
 The official implementation of CLIPKG4Vid — a framework that enhances text-video retrieval by leveraging frame-level captions (narration) to improve semantic understanding and retrieval accuracy. CLIPKG4Vid employs cross-modal interactions, query-aware filtering, dual-modal matching, and hard-negative loss, achieving SOTA results on MSR-VTT, MSVD, VATEX and DiDeMo.
 ![framework](/docs/framework.png)
 
-## News
-[Feb 27, 2025] Our paper has been accepted to CVPR 2025
-
 ## Requirements
 This project requires two environments: one for `CLIPKG4Vid`, which serves as the main framework, 
 and one for `LLaVa`, which is used for preprocessing to generate narrations.
