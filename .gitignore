@@ -27,6 +27,7 @@
 /datasets/MSVD/msvd_data
 /datasets/DiDeMo/didemo_data
 /datasets/Vatex/vatex_data
+/datasets/Vatex/vatex_data_raw
 
 /datasets/MSRVTT/frames.zip
 /datasets/MSVD/frames.zip
@@ -42,3 +43,4 @@
 /datasets/MSVD/msvd_data.zip
 /datasets/DiDeMo/didemo_data.zip
 /datasets/Vatex/vatex_data.zip
+/datasets/Vatex/vatex_data_raw.zip

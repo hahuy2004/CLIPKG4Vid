@@ -13,6 +13,7 @@ def convert_video(input_path, output_path):
         "-preset", "fast",
         "-pix_fmt", "yuv420p",
         "-c:a", "aac",
+        "-ac", "2",
         "-b:a", "192k",
         "-movflags", "+faststart",
         output_path
