@@ -128,7 +128,7 @@ class CLIPKG4VidPreTrainedModel(PreTrainedModel, nn.Module):
                             continue
         # -------------------------------------------------
         
-        # ---------- New: Create for narration ------------
+        # ---------- New: Create for narration like above (Line 93 - 128) ------------
         if model.sim_header == 'tightTransf':
             contain_cross = False
             for key in state_dict.keys():
