@@ -250,6 +250,14 @@ def save_model(epoch, args, model, optimizer, tr_loss, type_name=""):
     logger.info("Optimizer saved to %s", optimizer_state_file)
     return output_model_file
 
+def save_best_model(args, model, type_name="best_result"):
+    # Save only model weights (no optimizer state) to a single overwrite file
+    model_to_save = model.module if hasattr(model, 'module') else model
+    output_model_file = os.path.join(args.output_dir, "{}.bin".format(type_name))
+    torch.save(model_to_save.state_dict(), output_model_file)
+    logger.info("Best model weights saved to %s", output_model_file)
+    return output_model_file
+
 def load_model(epoch, args, n_gpu, device, model_file=None):
     if model_file is None or len(model_file) == 0:
         model_file = os.path.join(args.output_dir, "pytorch_model.bin.{}".format(epoch))
@@ -267,7 +275,7 @@ def load_model(epoch, args, n_gpu, device, model_file=None):
         model = None
     return model
 
-def train_epoch(epoch, args, model, train_dataloader, device, n_gpu, optimizer, scheduler, global_step, local_rank=0):
+def train_epoch(epoch, args, model, train_dataloader, device, n_gpu, optimizer, scheduler, global_step, local_rank=0, test_dataloader=None, best_score=0.00001):
     global logger
     torch.cuda.empty_cache()
     model.train()
@@ -319,7 +327,24 @@ def train_epoch(epoch, args, model, train_dataloader, device, n_gpu, optimizer, 
                             float(loss),
                             (time.time() - start_time) / (log_step * args.gradient_accumulation_steps))
                 start_time = time.time()
-        
+
+            # Step-based evaluation
+            if ((global_step % (log_step * 3) == 0) or global_step == 1) and args.datatype == "msrvtt":
+                if test_dataloader is not None:
+                    if n_gpu > 1:
+                        torch.distributed.barrier()
+                    if local_rank == 0:
+                        logger.info("[Step Eval] Evaluating at global_step %d...", global_step)
+                        R1 = eval_epoch(args, model, test_dataloader, device, n_gpu)
+                        logger.info("[Step Eval] R1: %.4f | Best so far: %.4f", R1, best_score)
+                        if R1 > best_score:
+                            best_score = R1
+                            save_best_model(args, model)
+                            logger.info("[Step Eval] New best! R1: %.4f, weights saved to best_result.bin", R1)
+                    if n_gpu > 1:
+                        torch.distributed.barrier()
+                    model.train()
+
         # Check if max_steps is reached
         if args.max_steps > 0 and step + 1 >= args.max_steps:
             if local_rank == 0:
@@ -330,7 +355,7 @@ def train_epoch(epoch, args, model, train_dataloader, device, n_gpu, optimizer, 
     actual_steps = min(step + 1, len(train_dataloader)) if args.max_steps <= 0 else min(step + 1, args.max_steps)
     # total_loss = total_loss / len(train_dataloader)
     total_loss = total_loss / actual_steps
-    return total_loss, global_step
+    return total_loss, global_step, best_score
 
 # New: Using 4 separate similarity matrices to calculate the metrics, 
 # which is more efficient than calculating the metrics for each pair of sentences and videos.
@@ -649,6 +674,13 @@ def main():
                 # paramenters which < freeze_layer_num will be freezed
                 param.requires_grad = False
 
+    if args.local_rank == 0:
+        all_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        logger.info("All parameters: %d", all_params)
+        logger.info("Trainable parameters: %d", trainable_params)
+        logger.info("Percentage of training parameters: %.4f", trainable_params / all_params)
+
     ## ####################################
     # dataloader loading
     ## ####################################
@@ -710,8 +742,9 @@ def main():
         global_step = 0
         for epoch in range(resumed_epoch, args.epochs):
             train_sampler.set_epoch(epoch)
-            tr_loss, global_step = train_epoch(epoch, args, model, train_dataloader, device, n_gpu, optimizer,
-                                               scheduler, global_step, local_rank=args.local_rank)
+            tr_loss, global_step, best_score = train_epoch(epoch, args, model, train_dataloader, device, n_gpu, optimizer,
+                                                           scheduler, global_step, local_rank=args.local_rank,
+                                                           test_dataloader=test_dataloader, best_score=best_score)
 
             if args.local_rank == 0:
                 logger.info("Epoch %d/%s Finished, Train Loss: %f", epoch + 1, args.epochs, tr_loss)
@@ -726,6 +759,8 @@ def main():
                 if best_score <= R1:
                     best_score = R1
                     best_output_model_file = output_model_file
+                    save_best_model(args, model)
+                    logger.info("New best score at end of epoch: %.4f, weights saved to best_result.bin", best_score)
                 logger.info("The best model is: {}, the R1 is: {:.4f}".format(best_output_model_file, best_score))
 
         ## Uncomment if want to test on the best checkpoint
